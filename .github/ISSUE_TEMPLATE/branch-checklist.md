@@ -10,6 +10,7 @@ assignees: ''
 _Descriptions of these steps can be found in the team OneNote._
 
 - [ ] Identify base commit for new branch
+- [ ] Create a [tag](https://github.com/dotnet/project-system/tags) for the current version
 - [ ] Create branch on GitHub
 - [ ] Update the YAML file to support CI/PR builds
 - [ ] Update Roslyn Tools config.xml file to flow branch changes to the latest dev branch
