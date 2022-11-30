@@ -2,6 +2,7 @@
 
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Design.Serialization;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
 
 namespace Microsoft.VisualStudio.ProjectSystem.VS.WindowsForms;
@@ -13,6 +14,7 @@ internal class MyAppFileAccessor : IMyAppFileAccessor, IDisposable
     private readonly IServiceProvider _serviceProvider;
     private readonly UnconfiguredProject _project;
     private readonly IProjectThreadingService _threadingService;
+    private readonly IEnumerable<IVsSingleFileGenerator> _fileGenerators;
     private readonly IPhysicalProjectTreeStorage _storage;
     private DocData? _docData;
     private MyAppDocument? _myAppDocument;
@@ -29,31 +31,19 @@ internal class MyAppFileAccessor : IMyAppFileAccessor, IDisposable
     private const string SplashScreenProperty = "SplashScreen";
     private const string MinimumSplashScreenDisplayTimeProperty = "MinimumSplashScreenDisplayTime";
 
-    private const string DefaultMyappFileContents =
-        """
-        <?xml version="1.0" encoding="utf-8"?>
-        <MyApplicationData xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-          <MySubMain>true</MySubMain>
-          <MainForm>Form1</MainForm>
-          <SingleInstance>false</SingleInstance>
-          <ShutdownMode>0</ShutdownMode>
-          <EnableVisualStyles>true</EnableVisualStyles>
-          <AuthenticationMode>0</AuthenticationMode>
-          <SaveMySettingsOnExit>true</SaveMySettingsOnExit>
-        </MyApplicationData>
-        """;
-
     [ImportingConstructor]
 #pragma warning disable RS0030 // Do not used banned APIs
     public MyAppFileAccessor([Import(typeof(SVsServiceProvider))] IServiceProvider serviceProvider,
 #pragma warning restore RS0030 // Do not used banned APIs
         UnconfiguredProject project,
         IProjectThreadingService threadingService,
-        IPhysicalProjectTree projectTree)
+        IPhysicalProjectTree projectTree,
+        [ImportMany] IEnumerable<IVsSingleFileGenerator> fileGenerators)
     {
         _serviceProvider = serviceProvider;
         _project = project;
         _threadingService = threadingService;
+        _fileGenerators = fileGenerators;
         _storage = projectTree.TreeStorage;
         _absolutePath = _project.MakeRooted(@"My Project\Application.myapp");
     }
@@ -72,17 +62,7 @@ internal class MyAppFileAccessor : IMyAppFileAccessor, IDisposable
     {
         if (_docData?.Data is null)
         {
-            // Create My Project directory if it doesn't exist. If it does, nothing happens
-            await _storage.CreateFolderAsync("My Project");
-
-            if (!File.Exists(_absolutePath))
-            {
-                // Create and write defaults to the myapp file
-                await _storage.CreateEmptyFileAsync(_absolutePath);
-                using StreamWriter writer = File.AppendText(_absolutePath);
-                await writer.WriteAsync(DefaultMyappFileContents);
-                await writer.FlushAsync();
-            }
+            return null;
         }
         
         await _threadingService.SwitchToUIThread();
@@ -111,6 +91,23 @@ internal class MyAppFileAccessor : IMyAppFileAccessor, IDisposable
         {
             await _threadingService.SwitchToUIThread();
             myAppDocument.SetProperty(propertyName, value);
+        }
+        else
+        {
+            
+            // Create My Project directory if it doesn't exist. If it does, nothing happens
+            await _storage.CreateFolderAsync("My Project");
+
+            if (!File.Exists(_absolutePath))
+            {
+                // Create and write defaults to the myapp file
+                await _storage.CreateEmptyFileAsync(_absolutePath);
+                using StreamWriter writer = File.AppendText(_absolutePath);
+               // await writer.WriteAsync(DefaultMyappFileContents);
+                await writer.FlushAsync();
+            }
+
+            await SetPropertyAsync(propertyName, value);
         }
     }
 
